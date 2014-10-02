@@ -219,12 +219,21 @@ int main(int argc, char **argv, char **envp)
 
     int w_val;
     while(1) {
-        /* Check for termination, update register record */
-        wait(&w_val);
-        if(WIFEXITED(w_val))
-            break;
+        /* Get the instruction to be executed */
         ptrace(PTRACE_GETREGS,pid,0,&regs);
         curr_inst = (void *)regs.IP_REG;
+
+        /* Single-step the child process */
+        step_process(pid);
+        /* Check for termination, update register record */
+        wait(&w_val);
+        if(WIFEXITED(w_val)) {
+            printf("Process %d exited normally\n",pid);
+            break;
+        } else if(WIFSIGNALED(w_val)) {
+            printf("Process %d was killed by signal %d\n",pid,w_val);
+            break;
+        }
 
         /* Set the Disassembler input buffer and read MAX_INSTR_SIZE
             bytes from the address in child's EIP */
@@ -241,14 +250,8 @@ int main(int argc, char **argv, char **envp)
                 printf("%s\n",ud_insn_asm(&ud_obj)); 
             } else 
                 printf("Failed Disassembly\n"); 
-
         }
-
-        /* Single-step the child process */
-        if(step_process(pid))
-            break;
     }
-    verbose("Finished execution\n");
 
     return 0;    
 }
